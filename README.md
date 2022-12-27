@@ -14,3 +14,6 @@ To Use:
 Right click on decompiled code , select "Find possible vulnerability in function"
 
 ![image](https://user-images.githubusercontent.com/118329900/209662066-8eb6fa58-334f-4f5f-b3fd-534baf8bca62.png)
+
+![image](https://user-images.githubusercontent.com/118329900/209662336-336257d8-2524-4879-a5ce-3d4acc3808cb.png)
+
