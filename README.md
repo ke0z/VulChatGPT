@@ -1,7 +1,10 @@
 # VulChatGPT
+
+An IDA PRO plugin to help in finding vulnerabilites in binaries.
+
 Use IDA PRO HexRays decompiler with OpenAI(ChatGPT) to find possible vulnerabilities in binaries 
 
-Disclaimer, possible scenarios to find binary vulnerabilites may lead to a lot of false positive, however it has worked in many CTFs I have worked on (simple/medium ... some hard)
+Disclaimer, possible scenarios to find binary vulnerabilites may lead to false positives, however it has worked in many CTFs I have worked on (simple/medium ... some hard)
 
 Inspired by Gepetto : https://github.com/JusticeRage/Gepetto
 
