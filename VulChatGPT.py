@@ -18,10 +18,11 @@ openai.api_key = "ENTER_OPEN_API_KEY_HERE"
 # =============================================================================
 
 class VulChatPlugin(idaapi.plugin_t):
-    flags = 0
-    
+    flags = 0 
     vuln_action_name = "vulchat:vuln_function"
     vuln_menu_path = "Edit/VulChat/Find Possible Vulnerability"
+    expl_action_name = "vulchat:expl_function"
+    expl_menu_path = "Edit/Vulchat/Write Python Exploit Sample Script"
     wanted_name = 'VulChat'
     wanted_hotkey = ''
     comment = "Uses davinci-003 to find vulnerabilites the decompiler's output"
@@ -43,6 +44,20 @@ class VulChatPlugin(idaapi.plugin_t):
         idaapi.register_action(vuln_action)
         idaapi.attach_action_to_menu(self.vuln_menu_path, self.vuln_action_name, idaapi.SETMENU_APP)
 
+        #Function Exploit Creator
+        exploit_action = idaapi.action_desc_t(self.expl_action_name,
+                                              'Create Sample Python Exploit',
+                                              ExploitHandler(),
+                                              "Ctrl+Alt+X",
+                                              "Use davinci-003 to create a sample exploit script in python",
+                                              199)
+        idaapi.register_action(exploit_action)
+        idaapi.attach_action_to_menu(self.expl_menu_path, self.expl_action_name, idaapi.SETMENU_APP)
+
+        #Function LibAFL Harness
+
+        #Function FRida Injector
+
         # Register context menu actions
         self.menu = ContextMenuHooks()
         self.menu.hook()
@@ -54,6 +69,7 @@ class VulChatPlugin(idaapi.plugin_t):
 
     def term(self):
         idaapi.detach_action_from_menu(self.vuln_menu_path, self.vuln_action_name)
+        idaapi.detach_action_from_menu(self.expl_menu_path, self.expl_action_name)
         if self.menu:
             self.menu.unhook()
         return
@@ -65,6 +81,7 @@ class ContextMenuHooks(idaapi.UI_Hooks):
         # Add actions to the context menu of the Pseudocode view
         if idaapi.get_widget_type(form) == idaapi.BWN_PSEUDOCODE:
             idaapi.attach_action_to_popup(form, popup, VulChatPlugin.vuln_action_name, "VulChat/")
+            idaapi.attach_action_to_popup(form, popup, VulChatPlugin.expl_action_name, "VulChat/Create_EXploit")
 
 # -----------------------------------------------------------------------------
 
@@ -105,7 +122,25 @@ class VulnHandler(idaapi.action_handler_t):
     # This action is always available.
     def update(self, ctx):
         return idaapi.AST_ENABLE_ALWAYS
+# -----------------------------------------------------------------------------
+class ExploitHandler(idaapi.action_handler_t):
+    """
+    This handler requests a python exploit for the vulnerable function
+    """
+    def __init__(self):
+        idaapi.action_handler_t.__init__(self)
 
+    def activate(self, ctx):
+        decompiler_ouput = ida_hexrays.decompile(idaapi.get_screen_ea())
+        v = ida_hexrays.get_widget_vdui(ctx.widget)
+        query_model_async("Find the vulnerability in the following C function:\n" + str(decompiler_ouput) + 
+        "\nWrite a python one liner to exploit the function",
+        functools.partial(comment_callback, address=idaapi.get_screen_ea(), view=v))
+        return 1
+
+    # This action is always available.
+    def update(self, ctx):
+        return idaapi.AST_ENABLE_ALWAYS   
 # =============================================================================
 # davinci-003 interaction
 # =============================================================================
