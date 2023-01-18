@@ -26,6 +26,6 @@ Right click on decompiled code , select "Find possible vulnerability in function
 
 
 ## ISSUES
--Large functions dont work due to size restriction on OpenAI
--Well do a little bit of static, rename variables ... i mean help your AI out :)
--False +ves (wuuueh!!)
+### Large functions dont work due to size restriction on OpenAI
+### Well do a little bit of static, rename variables/functions, create structs if need be add some FLIRT  ... i mean help your AI out :)
+### False +ves (wuuueh!!)
