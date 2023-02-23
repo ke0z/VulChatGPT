@@ -23,6 +23,10 @@ class VulChatPlugin(idaapi.plugin_t):
     vuln_menu_path = "Edit/VulChat/Find Possible Vulnerability"
     expl_action_name = "vulchat:expl_function"
     expl_menu_path = "Edit/Vulchat/Write Python Exploit Sample Script"
+    explain_action_name = "vulchat:explain_function"
+    explain_menu_path = "Edit/Vulchat/Explain the following Code"
+    rename_action_name = "vulchat:rename_function"
+    rename_menu_path = "Edit/Vulchat/Rename Variables and Functions"
     wanted_name = 'VulChat'
     wanted_hotkey = ''
     comment = "Uses davinci-003 to find vulnerabilites the decompiler's output"
@@ -33,6 +37,26 @@ class VulChatPlugin(idaapi.plugin_t):
         # Check whether the decompiler is available
         if not ida_hexrays.init_hexrays_plugin():
             return idaapi.PLUGIN_SKIP
+        
+        # Function explaining action
+        explain_action = idaapi.action_desc_t(self.explain_action_name,
+                                              'Explain function',
+                                              ExplainHandler(),
+                                              "Ctrl+Alt+G",
+                                              'Use davinci-003 to explain the currently selected function',
+                                              199)
+        idaapi.register_action(explain_action)
+        idaapi.attach_action_to_menu(self.explain_menu_path, self.explain_action_name, idaapi.SETMENU_APP)
+
+        # Variable renaming action
+        rename_action = idaapi.action_desc_t(self.rename_action_name,
+                                             'Rename variables',
+                                             RenameHandler(),
+                                             "Ctrl+Alt+R",
+                                             "Use davinci-003 to rename this function's variables",
+                                             199)
+        idaapi.register_action(rename_action)
+        idaapi.attach_action_to_menu(self.rename_menu_path, self.rename_action_name, idaapi.SETMENU_APP)
 
         #Function vulnerability Checker
         vuln_action = idaapi.action_desc_t(self.vuln_action_name,
@@ -54,9 +78,7 @@ class VulChatPlugin(idaapi.plugin_t):
         idaapi.register_action(exploit_action)
         idaapi.attach_action_to_menu(self.expl_menu_path, self.expl_action_name, idaapi.SETMENU_APP)
 
-        #Function LibAFL Harness
 
-        #Function FRida Injector
 
         # Register context menu actions
         self.menu = ContextMenuHooks()
@@ -68,6 +90,8 @@ class VulChatPlugin(idaapi.plugin_t):
         pass
 
     def term(self):
+        idaapi.detach_action_from_menu(self.explain_menu_path, self.explain_action_name)
+        idaapi.detach_action_from_menu(self.rename_menu_path, self.rename_action_name)
         idaapi.detach_action_from_menu(self.vuln_menu_path, self.vuln_action_name)
         idaapi.detach_action_from_menu(self.expl_menu_path, self.expl_action_name)
         if self.menu:
@@ -82,6 +106,8 @@ class ContextMenuHooks(idaapi.UI_Hooks):
         if idaapi.get_widget_type(form) == idaapi.BWN_PSEUDOCODE:
             idaapi.attach_action_to_popup(form, popup, VulChatPlugin.vuln_action_name, "VulChat/")
             idaapi.attach_action_to_popup(form, popup, VulChatPlugin.expl_action_name, "VulChat/Create_EXploit")
+            idaapi.attach_action_to_popup(form, popup, VulChatPlugin.explain_action_name, "VulChat/Explain_Function")
+            idaapi.attach_action_to_popup(form, popup, VulChatPlugin.rename_action_name, "VulChat/Rename_Variables")
 
 # -----------------------------------------------------------------------------
 
@@ -101,6 +127,97 @@ def comment_callback(address, view, response):
     if view:
         view.refresh_view(False)
     print("davinci-003 query finished!")
+    
+# -----------------------------------------------------------------------------
+
+class ExplainHandler(idaapi.action_handler_t):
+    """
+    This handler is tasked with querying davinci-003 for an explanation of the
+    given function. Once the reply is received, it is added as a function
+    comment.
+    """
+    def __init__(self):
+        idaapi.action_handler_t.__init__(self)
+
+    def activate(self, ctx):
+        decompiler_output = ida_hexrays.decompile(idaapi.get_screen_ea())
+        v = ida_hexrays.get_widget_vdui(ctx.widget)
+        query_model_async("Can you explain what the following C function does and suggest a better name for it?\n"
+                          + str(decompiler_output),
+                          functools.partial(comment_callback, address=idaapi.get_screen_ea(), view=v))
+        return 1
+
+    # This action is always available.
+    def update(self, ctx):
+        return idaapi.AST_ENABLE_ALWAYS
+
+# -----------------------------------------------------------------------------
+
+def rename_callback(address, view, response):
+    """
+    Callback that extracts a JSON array of old names and new names from the
+    response and sets them in the pseudocode.
+    :param address: The address of the function to work on
+    :param view: A handle to the decompiler window
+    :param response: The response from davinci-003
+    """
+    j = re.search(r"\{[^}]*?\}", response)
+    if not j:
+        print(f"Cannot extract valid JSON from the response. Asking the model to fix it...")
+        query_model_async("The JSON document provided in this response is invalid. Can you fix it?\n" + response,
+                          functools.partial(rename_callback, address=idaapi.get_screen_ea(), view=view))
+        return
+    try:
+        names = json.loads(j.group(0))
+    except json.decoder.JSONDecodeError:
+        print(f"The JSON document returned is invalid. Asking the model to fix it...")
+        query_model_async("Please fix the following JSON document:\n" + j.group(0),
+                          functools.partial(rename_callback, address=idaapi.get_screen_ea(), view=view))
+        return
+
+    # The rename function needs the start address of the function
+    function_addr = idaapi.get_func(address).start_ea
+
+    replaced = []
+    for n in names:
+        if ida_hexrays.rename_lvar(function_addr, n, names[n]):
+            replaced.append(n)
+
+    # Update possible names left in the function comment
+    comment = idc.get_func_cmt(address, 0)
+    if comment and len(replaced) > 0:
+        for n in replaced:
+            comment = re.sub(r'\b%s\b' % n, names[n], comment)
+        idc.set_func_cmt(address, comment, 0)
+
+    # Refresh the window to show the new names
+    if view:
+        view.refresh_view(True)
+    print(f"davinci-003 query finished! {len(replaced)} variable(s) renamed.")
+
+# -----------------------------------------------------------------------------
+
+class RenameHandler(idaapi.action_handler_t):
+    """
+    This handler requests new variable names from davinci-003 and updates the
+    decompiler's output.
+    """
+    def __init__(self):
+        idaapi.action_handler_t.__init__(self)
+
+    def activate(self, ctx):
+        decompiler_output = ida_hexrays.decompile(idaapi.get_screen_ea())
+        v = ida_hexrays.get_widget_vdui(ctx.widget)
+        query_model_async("Analyze the following C function:\n" + str(decompiler_output) +
+                            "\nSuggest better variable names, reply with a JSON array where keys are the original names"
+                            "and values are the proposed names. Do not explain anything, only print the JSON "
+                            "dictionary.",
+                          functools.partial(rename_callback, address=idaapi.get_screen_ea(), view=v))
+        return 1
+
+    # This action is always available.
+    def update(self, ctx):
+        return idaapi.AST_ENABLE_ALWAYS    
 
 # -----------------------------------------------------------------------------
 class VulnHandler(idaapi.action_handler_t):
@@ -145,7 +262,7 @@ class ExploitHandler(idaapi.action_handler_t):
 # davinci-003 interaction
 # =============================================================================
 
-def query_model(query, cb):
+def query_model(query, cb, max_tokens=2500):
     """
     Function which sends a query to davinci-003 and calls a callback when the response is available.
     Blocks until the response is received
@@ -157,13 +274,28 @@ def query_model(query, cb):
             model="text-davinci-003",
             prompt=query,
             temperature=0.6,
-            max_tokens=2500,
+            max_tokens=max_tokens,
             top_p=1,
             frequency_penalty=1,
             presence_penalty=1,
-            timeout=60  # Wait 60 seconds maximum
+            #timeout=60  # Wait 60 seconds maximum
         )
         ida_kernwin.execute_sync(functools.partial(cb, response=response.choices[0].text), ida_kernwin.MFF_WRITE)
+    except openai.InvalidRequestError as e:
+        # Context length exceeded. Determine the max number of tokens we can ask for and retry.
+        m = re.search(r'maximum context length is (\d+) tokens, however you requested \d+ tokens \((\d+) in your '
+                      r'prompt;', str(e))
+        if not m:
+            print(f"davinci-003 could not complete the request: {str(e)}")
+            return
+        (hard_limit, prompt_tokens) = (int(m.group(1)), int(m.group(2)))
+        max_tokens = hard_limit - prompt_tokens
+        if max_tokens >= 750:
+            print(f"Context length exceeded! Reducing the completion tokens to {max_tokens}...")
+            query_model(query, cb, max_tokens)
+        else:
+            print("Unfortunately, this function is too big to be analyzed with the model's current API limits.")
+        
     except openai.OpenAIError as e:
         print(f"davinci-003 could not complete the request: {str(e)}")
     except Exception as e:
