@@ -24,6 +24,11 @@ Right click on decompiled code , select "Find possible vulnerability in function
 
 ![image](https://user-images.githubusercontent.com/118329900/211160190-d077a4b3-f49f-4696-b618-134ae10a6d9a.png)
 
+### Updated with Gepetto's rename and explain functions 
+
+![image](https://user-images.githubusercontent.com/118329900/220962130-3b82708b-f228-4053-a85d-342c5df9eea4.png)
+
+
 
 ## ISSUES
 ### Large functions dont work due to size restriction on OpenAI
