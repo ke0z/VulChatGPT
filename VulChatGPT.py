@@ -300,7 +300,6 @@ def query_model(query, cb, max_output_tokens=1500, model_name="gpt-5"):
                         {"role": "system", "content": "You are a helpful, concise assistant for reverse engineering and secure code review. Avoid unsafe instructions."},
                         {"role": "user", "content": query},
                     ],
-                    temperature=0.4,
                     max_tokens=max_output_tokens,
                 )
                 text = resp.choices[0].message.content if resp.choices else ""
@@ -308,7 +307,6 @@ def query_model(query, cb, max_output_tokens=1500, model_name="gpt-5"):
                 resp = client.responses.create(  # type: ignore
                     model=model_name,
                     input=query,
-                    temperature=0.4,
                     max_output_tokens=max_output_tokens,
                 )
                 text = getattr(resp, "output_text", None) or getattr(resp, "content", "")
