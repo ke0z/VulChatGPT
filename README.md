@@ -98,4 +98,55 @@ Add to your shell profile and reload it (or open a new terminal):
 # bash: ~/.bashrc or ~/.profile
 # zsh:  ~/.zshrc
 export OPENAI_API_KEY="sk-your-key-here"
+
+
+🔧 New Features Added:
+Google Gemini Integration
+
+Added import and initialization for google.generativeai
+Added _GEMINI_API_KEY environment variable support
+Added _get_gemini_client() function for Gemini initialization
+Multi-Provider Support
+
+Added _CURRENT_PROVIDER configuration (openai/gemini)
+Added _CURRENT_MODEL configuration for model selection
+Modified query_model() to support both OpenAI and Gemini
+Added _get_current_provider_info() for provider status
+Enhanced Control Panel
+
+Completely redesigned the Control Panel with provider switching
+Shows current configuration and provider status
+Provides setup guidance for both providers
+Allows model selection for OpenAI
+Environment Variables Added:
+
+GEMINI_API_KEY - Your Gemini API key
+VULCHAT_PROVIDER - Choose between "openai" or "gemini"
+VULCHAT_MODEL - Specify model (optional)
+🚀 How to Use Gemini:
+Install the Gemini library:
+
+
+```pip install google-generativeai```
+Get your Gemini API key:
+
+Visit: https://aistudio.google.com/app/apikey
+Create a new API key
+Set environment variables:
+
+
+# Windows Command Promptset GEMINI_API_KEY=your_gemini_key_hereset VULCHAT_PROVIDER=gemini# Or for PowerShell$env:GEMINI_API_KEY="your_gemini_key_here"$env:VULCHAT_PROVIDER="gemini"
+Restart IDA Pro to load the new configuration
+
+Use the Control Panel:
+
+Go to Edit → VulChat → Control Panel
+Switch between providers
+View current status
+🎯 Key Benefits:
+Choice: Use either OpenAI or Gemini based on your preference
+Flexibility: Easy switching between providers via Control Panel
+Guidance: Built-in setup instructions and status checking
+Compatibility: All existing features work with both providers
+The plugin will automatically use your preferred provider for all vulnerability analysis, code explanation, and other AI-powered features!
 export OPENAI_BASE_URL="https://api.openai.com/v1"
