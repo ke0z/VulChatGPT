@@ -1,4 +1,4 @@
-# VulChatGPT
+# BinAIVulHunter
 
 An IDA PRO plugin to help in finding vulnerabilites in binaries.
 
@@ -28,13 +28,13 @@ Right click on decompiled code , select "Find possible vulnerability in function
 
 ![image](https://user-images.githubusercontent.com/118329900/220962130-3b82708b-f228-4053-a85d-342c5df9eea4.png)
 
-# VulChatGPT - AI-Powered Vulnerability Analysis Plugin for IDA Pro
+# BinAIVulHunter - AI-Powered Vulnerability Analysis Plugin for IDA Pro
 
 [![Python](https://img.shields.io/badge/python-3.6+-blue.svg)](https://www.python.org/downloads/)
 [![IDA Pro](https://img.shields.io/badge/IDA%20Pro-7.0+-green.svg)](https://www.hex-rays.com/products/ida/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-VulChatGPT is an advanced IDA Pro plugin that leverages multiple AI providers (OpenAI GPT, Google Gemini, and Ollama) to perform intelligent vulnerability analysis, code explanation, and security assessment of decompiled functions.
+BinAIVulHunter is an advanced IDA Pro plugin that leverages multiple AI providers (OpenAI GPT, Google Gemini, and Ollama) to perform intelligent vulnerability analysis, code explanation, and security assessment of decompiled functions.
 
 ## 🚀 Features
 
@@ -70,7 +70,7 @@ VulChatGPT is an advanced IDA Pro plugin that leverages multiple AI providers (O
 
 1. **Download the plugin**:
    ```bash
-   # Save VulChatGPT.py to your IDA Pro plugins directory
+   # Save BinAIVulHunter.py to your IDA Pro plugins directory
    # Typically: C:\Program Files\IDA Pro X.X\plugins\
    ```
 
@@ -255,13 +255,13 @@ For automated analysis and CI/CD integration:
 
 ```bash
 # Scan all functions for vulnerabilities
-ida64.exe -A -S"VulChatGPT.py --scan-all --output results.json" binary.exe
+ida64.exe -A -S"BinAIVulHunter.py --scan-all --output results.json" binary.exe
 
 # Decompile all functions with caching
-ida64.exe -A -S"VulChatGPT.py --decompile-all --cache-dir ./cache" binary.exe
+ida64.exe -A -S"BinAIVulHunter.py --decompile-all --cache-dir ./cache" binary.exe
 
 # Custom batch settings
-ida64.exe -A -S"VulChatGPT.py --scan-all --batch-size 5 --function-pause 3 --batch-pause 15" binary.exe
+ida64.exe -A -S"BinAIVulHunter.py --scan-all --batch-size 5 --function-pause 3 --batch-pause 15" binary.exe
 ```
 
 #### Headless Parameters
@@ -278,7 +278,7 @@ ida64.exe -A -S"VulChatGPT.py --scan-all --batch-size 5 --function-pause 3 --bat
 
 ## 🛡️ Vulnerability Categories
 
-VulChatGPT analyzes code based on the CWE-699 Software Development taxonomy:
+BinAIVulHunter analyzes code based on the CWE-699 Software Development taxonomy:
 
 | Category | CWE ID | Examples |
 |----------|--------|----------|
@@ -319,7 +319,7 @@ POTENTIAL VULNERABILITIES:
 
 ```bash
 # Command line batch scan
-ida64.exe -A -S"VulChatGPT.py --scan-all --output vuln_report.json" malware.exe
+ida64.exe -A -S"BinAIVulHunter.py --scan-all --output vuln_report.json" malware.exe
 
 # Results in vuln_report.json:
 {
@@ -433,7 +433,7 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 1. **Fork the repository**
 2. **Clone your fork**:
    ```bash
-   git clone https://github.com/yourusername/VulChatGPT.git
+   git clone https://github.com/yourusername/BinAIVulHunter.git
    ```
 3. **Install development dependencies**:
    ```bash
