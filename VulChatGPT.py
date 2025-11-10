@@ -1,3 +1,42 @@
+"""
+VulChatGPT - AI-Powered Vulnerability Analysis Plugin for IDA Pro
+
+This plugin supports OpenAI, Google Gemini, and Ollama AI providers for vulnerability analysis.
+
+SETUP:
+
+For OpenAI:
+1. Install: pip install openai
+2. Get API key from: https://platform.openai.com/api-keys
+3. Set environment variable: OPENAI_API_KEY=your_key_here
+4. Restart IDA Pro
+
+For Google Gemini:
+1. Install: pip install google-generativeai
+2. Get API key from: https://aistudio.google.com/app/apikey
+3. Set environment variable: GEMINI_API_KEY=your_key_here
+4. Restart IDA Pro
+
+For Ollama (Local AI):
+1. Install Ollama from: https://ollama.ai/
+2. Install requests: pip install requests
+3. Start Ollama: ollama serve
+4. Pull a model: ollama pull llama2
+5. Set environment variables (optional):
+   - OLLAMA_BASE_URL=http://localhost:11434 (default)
+   - OLLAMA_MODEL=llama2 (default)
+
+CONFIGURATION:
+- Set VULCHAT_PROVIDER=openai|gemini|ollama (default: openai)
+- Set VULCHAT_MODEL=gpt-4 or your preferred model (optional)
+- Use Edit/VulChat/Control Panel to switch providers in IDA
+
+USAGE:
+- Right-click in decompiler view for context menu
+- Or use Edit/VulChat menu
+- Functions include vulnerability scanning, code explanation, and variable renaming
+"""
+
 import functools
 import json
 import os
@@ -177,8 +216,31 @@ except Exception:
         _openai_legacy = None
         _OPENAI_SDK = None
 
+# Google Gemini support
+try:
+    import google.generativeai as _genai
+    _GEMINI_AVAILABLE = True
+except Exception:
+    _genai = None
+    _GEMINI_AVAILABLE = False
+
+# Ollama support
+try:
+    import requests as _requests
+    _OLLAMA_AVAILABLE = True
+except Exception:
+    _requests = None
+    _OLLAMA_AVAILABLE = False
+
 _OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 _OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL")
+_GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+_OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+_OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama2")
+
+# Current AI provider configuration
+_CURRENT_PROVIDER = os.getenv("VULCHAT_PROVIDER", "openai")  # openai, gemini, or ollama
+_CURRENT_MODEL = os.getenv("VULCHAT_MODEL", "gpt-4")  # default model for each provider
 
 # ----- Decompile All Handler --------------------------------------------------
 class DecompileAllHandler(idaapi.action_handler_t):
@@ -364,7 +426,7 @@ class VulChatPlugin(idaapi.plugin_t):
     flags = 0
     wanted_name = "VulChat"
     wanted_hotkey = ""
-    comment = "Uses GPT-5 to analyze the decompiler's output for vulnerabilities based on CWE"
+    comment = "Uses OpenAI GPT, Google Gemini, or Ollama to analyze decompiler output for vulnerabilities based on CWE"
     help = "Run from Edit/VulChat menu on pseudocode"
 
     # action ids & menu paths
@@ -835,42 +897,156 @@ class ControlPanelHandler(idaapi.action_handler_t):
         idaapi.action_handler_t.__init__(self)
 
     def activate(self, ctx):
-        # Check if any operation is running
-        operations_running = False
+        global _CURRENT_PROVIDER, _CURRENT_MODEL
+        
+        # Create settings dialog
+        settings_dialog = f"""VulChat AI Provider Settings
+        
+Current Configuration:
+- Provider: {_CURRENT_PROVIDER.title()}
+- Model: {_get_current_provider_info()['default_model']}
 
-        # Try to locate the decompile-all handler by action registry
-        try:
-            for action_name in ida_kernwin.get_registered_actions():
-                if action_name == VulChatPlugin.decompile_all_action_name:
-                    # There is no direct way to fetch handler instance from name in some IDA versions.
-                    operations_running = True
-                    break
-        except Exception:
-            pass
+Available Providers:
+1. OpenAI (Requires OPENAI_API_KEY)
+   - Status: {'✓' if _get_current_provider_info()['name'] == 'OpenAI' and _get_current_provider_info()['available'] else '✗'}
+   - Models: GPT-4, GPT-3.5-turbo, etc.
+   
+2. Google Gemini (Requires GEMINI_API_KEY)
+   - Status: {'✓' if _GEMINI_AVAILABLE and _GEMINI_API_KEY else '✗'}
+   - Models: gemini-pro
+   
+3. Ollama (Local, no API key needed)
+   - Status: {'✓' if _OLLAMA_AVAILABLE and _get_ollama_client() else '✗'}
+   - Models: llama2, codellama, etc.
 
-        if not operations_running:
-            print("No operations currently running.")
-            return 1
+Environment Variables:
+- OPENAI_API_KEY: {'Set' if _OPENAI_API_KEY else 'Not Set'}
+- GEMINI_API_KEY: {'Set' if _GEMINI_API_KEY else 'Not Set'}
+- OLLAMA_BASE_URL: {_OLLAMA_BASE_URL}
+- OLLAMA_MODEL: {_OLLAMA_MODEL}
+- VULCHAT_PROVIDER: {'Set (' + _CURRENT_PROVIDER + ')' if _CURRENT_PROVIDER else 'Not Set'}
 
-        options = ["Pause for 30 seconds", "Pause for 2 minutes", "Pause for 5 minutes", "Cancel current operation"]
-        choice = ida_kernwin.ask_buttons("Pause 30s", "Pause 2m", "Pause 5m", 0, "VulChat Control Panel\nSelect an action:")
+Choose an action:"""
 
-        if choice == 0:  # Cancel button
-            return 1
-        elif choice == 1:  # Pause for 30s
-            print("Pausing operations for 30 seconds...")
-            time.sleep(30)
-            print("Resuming operations...")
-        elif choice == 2:  # Pause for 2m
-            print("Pausing operations for 2 minutes...")
-            time.sleep(120)
-            print("Resuming operations...")
-        elif choice == 3:  # Pause for 5m
-            print("Pausing operations for 5 minutes...")
-            time.sleep(300)
-            print("Resuming operations...")
-        elif choice == -1:  # Cancel operation
-            print("Operation cancellation requested (no universal cancel hook available).")
+        # Present options based on available providers
+        ollama_available = _OLLAMA_AVAILABLE and _get_ollama_client()
+        gemini_available = _GEMINI_AVAILABLE and _GEMINI_API_KEY
+        
+        if ollama_available or gemini_available:
+            choice = ida_kernwin.ask_buttons(
+                "Provider Menu", "Model Settings", "Setup Guide", 1, settings_dialog
+            )
+            
+            if choice == 1:  # Provider Menu
+                # Show provider selection submenu
+                provider_options = ["OpenAI"]
+                if gemini_available:
+                    provider_options.append("Gemini")
+                if ollama_available:
+                    provider_options.append("Ollama")
+                
+                if len(provider_options) == 1:
+                    provider_choice = 1
+                elif len(provider_options) == 2:
+                    provider_choice = ida_kernwin.ask_buttons(
+                        provider_options[0], provider_options[1], "Cancel", 1, 
+                        "Select AI Provider:"
+                    )
+                else:
+                    provider_choice = ida_kernwin.ask_buttons(
+                        provider_options[0], provider_options[1], provider_options[2], 1, 
+                        "Select AI Provider:"
+                    )
+                
+                if provider_choice == 1:  # OpenAI
+                    if not _OPENAI_API_KEY:
+                        ida_kernwin.warning("OPENAI_API_KEY environment variable is not set.")
+                        return 1
+                    _CURRENT_PROVIDER = "openai"
+                    print("Switched to OpenAI provider")
+                    
+                elif provider_choice == 2:  # Second option (Gemini or Ollama)
+                    if gemini_available and provider_options[1] == "Gemini":
+                        _CURRENT_PROVIDER = "gemini"
+                        _CURRENT_MODEL = "gemini-pro"
+                        print("Switched to Google Gemini provider")
+                    elif ollama_available and provider_options[1] == "Ollama":
+                        _CURRENT_PROVIDER = "ollama"
+                        _CURRENT_MODEL = _OLLAMA_MODEL
+                        print("Switched to Ollama provider")
+                        
+                elif provider_choice == 3:  # Third option (Ollama)
+                    if ollama_available and provider_options[2] == "Ollama":
+                        _CURRENT_PROVIDER = "ollama"
+                        _CURRENT_MODEL = _OLLAMA_MODEL
+                        print("Switched to Ollama provider")
+                        
+        else:
+            choice = ida_kernwin.ask_buttons(
+                "Use OpenAI", "Setup Guide", "Cancel", 1, settings_dialog
+            )
+            if choice == 1:  # Use OpenAI (fallback)
+                if not _OPENAI_API_KEY:
+                    ida_kernwin.warning("OPENAI_API_KEY environment variable is not set.")
+                    return 1
+                _CURRENT_PROVIDER = "openai"
+                print("Switched to OpenAI provider")
+                
+        if choice == 2:  # Model Settings
+            if _CURRENT_PROVIDER == "openai":
+                model = ida_kernwin.ask_str(_CURRENT_MODEL or "gpt-4", 0, 
+                                           "Enter OpenAI model name (e.g., gpt-4, gpt-3.5-turbo):")
+                if model:
+                    _CURRENT_MODEL = model
+                    print(f"Set OpenAI model to: {model}")
+            elif _CURRENT_PROVIDER == "ollama":
+                model = ida_kernwin.ask_str(_OLLAMA_MODEL, 0, 
+                                           "Enter Ollama model name (e.g., llama2, codellama, mistral):")
+                if model:
+                    global _OLLAMA_MODEL
+                    _OLLAMA_MODEL = model
+                    _CURRENT_MODEL = model
+                    print(f"Set Ollama model to: {model}")
+            else:
+                ida_kernwin.info("Gemini currently uses gemini-pro model only.")
+                
+        elif choice == 3:  # Setup Guide
+            setup_guide = """VulChat AI Provider Setup Guide
+
+To use OpenAI:
+1. Get API key from: https://platform.openai.com/api-keys
+2. Set environment variable: OPENAI_API_KEY=your_key_here
+3. Restart IDA Pro
+
+To use Google Gemini:
+1. Install: pip install google-generativeai
+2. Get API key from: https://aistudio.google.com/app/apikey
+3. Set environment variable: GEMINI_API_KEY=your_key_here
+4. Restart IDA Pro
+
+To use Ollama (Local AI):
+1. Install Ollama from: https://ollama.ai/
+2. Install requests: pip install requests
+3. Start Ollama: ollama serve
+4. Pull a model: ollama pull llama2
+5. Set environment variables (optional):
+   - OLLAMA_BASE_URL=http://localhost:11434 (default)
+   - OLLAMA_MODEL=llama2 (default)
+   - VULCHAT_PROVIDER=ollama
+6. Restart IDA Pro
+
+To set provider preference:
+Set environment variable: VULCHAT_PROVIDER=openai|gemini|ollama
+
+Windows Command Line Examples:
+set OPENAI_API_KEY=sk-your-openai-key-here
+set GEMINI_API_KEY=your-gemini-key-here
+set VULCHAT_PROVIDER=ollama
+set OLLAMA_MODEL=codellama
+
+Then restart IDA Pro."""
+            
+            ida_kernwin.info(setup_guide)
 
         return 1
 
@@ -900,7 +1076,8 @@ def comment_callback(address, view, response):
             view.refresh_view(False)
         except Exception:
             pass
-    print("GPT-5 query finished!")
+    provider_info = _get_current_provider_info()
+    print(f"{provider_info['name']} query finished!")
 
 class ExplainHandler(idaapi.action_handler_t):
     def __init__(self):
@@ -1293,7 +1470,7 @@ class ScanAllHandler(idaapi.action_handler_t):
     def update(self, ctx):
         return ida_kernwin.AST_ENABLE_ALWAYS
 
-# ---- OpenAI integration ------------------------------------------------------
+# ---- AI provider integration -------------------------------------------------
 def _get_openai_client():
     if _OPENAI_SDK == "v1" and _OpenAIClient is not None:
         try:
@@ -1318,66 +1495,215 @@ def _get_openai_client():
             return None, None
     return None, None
 
-def query_model(query, cb, max_output_tokens=1500, model_name="gpt-5"):
-    mode, client = _get_openai_client()
-    if mode is None:
-        print("OpenAI SDK not available. Install openai and set OPENAI_API_KEY.")
-        return
-
+def _get_gemini_client():
+    """Initialize Gemini client if available and configured"""
+    if not _GEMINI_AVAILABLE or not _GEMINI_API_KEY:
+        return None
+    
     try:
-        if mode == "v1":
-            try:
-                resp = client.chat.completions.create(  # type: ignore
-                    model=model_name,
-                    messages=[
-                        {"role": "system", "content": "You are an expert vulnerability researcher, specializing in secure code review and vulnerability detection. You have extensive knowledge of the CWE (Common Weakness Enumeration) taxonomy, especially the CWE-699 Software Development categories. You are skilled at identifying memory safety issues, integer problems, error handling bugs, and other common security flaws in C/C++ code. Be specific with vulnerability descriptions, include precise CWE IDs when possible, and suggest concrete mitigations. Avoid unsafe instructions or exploits, but provide clear explanations of risk."},
-                        {"role": "user", "content": query},
-                    ],
-                    max_tokens=max_output_tokens,
-                )
-                text = resp.choices[0].message.content if resp.choices else ""
-            except Exception:
-                resp = client.responses.create(  # type: ignore
-                    model=model_name,
-                    input=query,
-                    max_output_tokens=max_output_tokens,
-                )
-                text = getattr(resp, "output_text", None) or getattr(resp, "content", "")
-            ida_kernwin.execute_sync(functools.partial(cb, response=text), ida_kernwin.MFF_WRITE)
-            return
-
-        if mode == "legacy":
-            resp = client.Completion.create(  # type: ignore
-                model="text-davinci-003",
-                prompt=query,
-                temperature=0.4,
-                max_tokens=max_output_tokens,
-                top_p=1,
-            )
-            text = resp.choices[0].text if resp and resp.choices else ""
-            ida_kernwin.execute_sync(functools.partial(cb, response=text), ida_kernwin.MFF_WRITE)
-            return
-
+        _genai.configure(api_key=_GEMINI_API_KEY)
+        return _genai.GenerativeModel('gemini-pro')
     except Exception as e:
-        m = re.search(r"maximum context length is (\d+) tokens, .*\((\d+) in your prompt;", str(e))
-        if m:
-            hard_limit, prompt_tokens = int(m.group(1)), int(m.group(2))
-            new_max = max(0, hard_limit - prompt_tokens)
-            if new_max >= 300:
-                print(f"Context length exceeded. Retrying with max_output_tokens={new_max}...")
-                query_model(query, cb, max_output_tokens=new_max, model_name=model_name)
-                return
-            print("Function too large for current API limits.")
+        print(f"Failed to init Gemini client: {e}")
+        return None
+
+def _get_ollama_client():
+    """Test Ollama connection and return base URL if available"""
+    if not _OLLAMA_AVAILABLE:
+        return None
+    
+    try:
+        # Test if Ollama is running by checking the API
+        response = _requests.get(f"{_OLLAMA_BASE_URL}/api/tags", timeout=5)
+        if response.status_code == 200:
+            return _OLLAMA_BASE_URL
+    except Exception as e:
+        print(f"Failed to connect to Ollama: {e}")
+    
+    return None
+
+def _get_current_provider_info():
+    """Get current AI provider information"""
+    if _CURRENT_PROVIDER == "gemini":
+        return {
+            "name": "Gemini",
+            "available": _GEMINI_AVAILABLE and bool(_GEMINI_API_KEY),
+            "api_key_env": "GEMINI_API_KEY",
+            "default_model": "gemini-pro"
+        }
+    elif _CURRENT_PROVIDER == "ollama":
+        return {
+            "name": "Ollama",
+            "available": _OLLAMA_AVAILABLE and bool(_get_ollama_client()),
+            "api_key_env": "None (runs locally)",
+            "default_model": _OLLAMA_MODEL
+        }
+    else:  # default to openai
+        return {
+            "name": "OpenAI",
+            "available": _OPENAI_SDK is not None and bool(_OPENAI_API_KEY),
+            "api_key_env": "OPENAI_API_KEY", 
+            "default_model": "gpt-4"
+        }
+
+def query_model(query, cb, max_output_tokens=1500, model_name=None):
+    """
+    Query the configured AI model (OpenAI or Gemini) with a vulnerability analysis request
+    """
+    # Use default model if none specified
+    if model_name is None:
+        provider_info = _get_current_provider_info()
+        model_name = provider_info["default_model"]
+    
+    # System prompt for vulnerability analysis
+    system_prompt = """You are an expert vulnerability researcher, specializing in secure code review and vulnerability detection. You have extensive knowledge of the CWE (Common Weakness Enumeration) taxonomy, especially the CWE-699 Software Development categories. You are skilled at identifying memory safety issues, integer problems, error handling bugs, and other common security flaws in C/C++ code. Be specific with vulnerability descriptions, include precise CWE IDs when possible, and suggest concrete mitigations. Avoid unsafe instructions or exploits, but provide clear explanations of risk."""
+    
+    if _CURRENT_PROVIDER == "gemini":
+        # Use Gemini
+        client = _get_gemini_client()
+        if client is None:
+            print("Gemini not available. Install google-generativeai and set GEMINI_API_KEY.")
             return
-        print(f"OpenAI request failed: {e}")
+        
+        try:
+            # Combine system prompt and user query for Gemini
+            full_prompt = f"{system_prompt}\n\nUser Request: {query}"
+            
+            # Configure generation parameters
+            generation_config = {
+                'max_output_tokens': max_output_tokens,
+                'temperature': 0.4,
+            }
+            
+            response = client.generate_content(
+                full_prompt,
+                generation_config=generation_config
+            )
+            
+            text = response.text if response and hasattr(response, 'text') else ""
+            ida_kernwin.execute_sync(functools.partial(cb, response=text), ida_kernwin.MFF_WRITE)
+            return
+            
+        except Exception as e:
+            # Handle rate limits and context length errors for Gemini
+            if "quota" in str(e).lower() or "rate" in str(e).lower():
+                print("Gemini API quota/rate limit exceeded. Please try again later.")
+            elif "token" in str(e).lower() and "limit" in str(e).lower():
+                print("Function too large for Gemini's context limit.")
+            else:
+                print(f"Gemini request failed: {e}")
+            return
+    
+    elif _CURRENT_PROVIDER == "ollama":
+        # Use Ollama
+        base_url = _get_ollama_client()
+        if base_url is None:
+            print("Ollama not available. Please start Ollama server or install requests library.")
+            return
+        
+        try:
+            # Combine system prompt and user query for Ollama
+            full_prompt = f"{system_prompt}\n\nUser Request: {query}"
+            
+            # Use current model or default
+            current_model = model_name if model_name != "gpt-4" else _OLLAMA_MODEL
+            
+            payload = {
+                "model": current_model,
+                "prompt": full_prompt,
+                "stream": False,
+                "options": {
+                    "temperature": 0.4,
+                    "num_predict": max_output_tokens
+                }
+            }
+            
+            response = _requests.post(
+                f"{base_url}/api/generate",
+                json=payload,
+                timeout=120  # Ollama can be slow for large contexts
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                text = result.get("response", "")
+                ida_kernwin.execute_sync(functools.partial(cb, response=text), ida_kernwin.MFF_WRITE)
+                return
+            else:
+                print(f"Ollama request failed with status {response.status_code}: {response.text}")
+                return
+            
+        except Exception as e:
+            if "timeout" in str(e).lower():
+                print("Ollama request timed out. The model might be too large or the query too complex.")
+            elif "connection" in str(e).lower():
+                print("Could not connect to Ollama. Make sure Ollama is running on localhost:11434")
+            else:
+                print(f"Ollama request failed: {e}")
+            return
+    
+    else:
+        # Use OpenAI (default)
+        mode, client = _get_openai_client()
+        if mode is None:
+            print("OpenAI SDK not available. Install openai and set OPENAI_API_KEY.")
+            return
+
+        try:
+            if mode == "v1":
+                try:
+                    resp = client.chat.completions.create(  # type: ignore
+                        model=model_name,
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": query},
+                        ],
+                        max_tokens=max_output_tokens,
+                    )
+                    text = resp.choices[0].message.content if resp.choices else ""
+                except Exception:
+                    resp = client.responses.create(  # type: ignore
+                        model=model_name,
+                        input=query,
+                        max_output_tokens=max_output_tokens,
+                    )
+                    text = getattr(resp, "output_text", None) or getattr(resp, "content", "")
+                ida_kernwin.execute_sync(functools.partial(cb, response=text), ida_kernwin.MFF_WRITE)
+                return
+
+            if mode == "legacy":
+                resp = client.Completion.create(  # type: ignore
+                    model="text-davinci-003",
+                    prompt=f"{system_prompt}\n\n{query}",
+                    temperature=0.4,
+                    max_tokens=max_output_tokens,
+                    top_p=1,
+                )
+                text = resp.choices[0].text if resp and resp.choices else ""
+                ida_kernwin.execute_sync(functools.partial(cb, response=text), ida_kernwin.MFF_WRITE)
+                return
+
+        except Exception as e:
+            m = re.search(r"maximum context length is (\d+) tokens, .*\((\d+) in your prompt;", str(e))
+            if m:
+                hard_limit, prompt_tokens = int(m.group(1)), int(m.group(2))
+                new_max = max(0, hard_limit - prompt_tokens)
+                if new_max >= 300:
+                    print(f"Context length exceeded. Retrying with max_output_tokens={new_max}...")
+                    query_model(query, cb, max_output_tokens=new_max, model_name=model_name)
+                    return
+                print("Function too large for current API limits.")
+                return
+            print(f"OpenAI request failed: {e}")
 
 def query_model_async(query, cb):
     """
-    Function which sends a query to GPT-5 and calls a callback when the response is available.
-    :param query: The request to send to GPT-5
-    :param cb: Tu function to which the response will be passed to.
+    Function which sends a query to the configured AI model and calls a callback when the response is available.
+    :param query: The request to send to the AI model
+    :param cb: The function to which the response will be passed to.
     """
-    print("Request to GPT-5 sent...")
+    provider_info = _get_current_provider_info()
+    print(f"Request sent to {provider_info['name']}...")
     t = threading.Thread(target=query_model, args=[query, cb])
     t.start()
 
@@ -1514,9 +1840,20 @@ def run_headless(args):
     print("[+] Headless operation completed")
 
 def PLUGIN_ENTRY():
-    # Validate OpenAI configuration early to provide actionable message within IDA.
-    if not _OPENAI_API_KEY and _OPENAI_SDK is not None:
-        print("Set OPENAI_API_KEY in your environment before using VulChat.")
+    # Show AI provider status and guidance
+    provider_info = _get_current_provider_info()
+    
+    if not provider_info["available"]:
+        print(f"VulChat: {provider_info['name']} provider not available.")
+        print(f"Please set {provider_info['api_key_env']} environment variable and restart IDA.")
+        
+        # Check if alternative is available
+        if _CURRENT_PROVIDER == "openai" and _GEMINI_AVAILABLE and _GEMINI_API_KEY:
+            print("Alternative: Gemini provider is available. Use Control Panel to switch.")
+        elif _CURRENT_PROVIDER == "gemini" and _OPENAI_SDK is not None and _OPENAI_API_KEY:
+            print("Alternative: OpenAI provider is available. Use Control Panel to switch.")
+    else:
+        print(f"VulChat: Using {provider_info['name']} provider with model {_get_current_provider_info()['default_model']}")
 
     # Check if we're running in headless mode and parse args
     args = parse_args()
