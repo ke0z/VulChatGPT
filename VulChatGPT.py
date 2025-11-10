@@ -897,7 +897,7 @@ class ControlPanelHandler(idaapi.action_handler_t):
         idaapi.action_handler_t.__init__(self)
 
     def activate(self, ctx):
-        global _CURRENT_PROVIDER, _CURRENT_MODEL
+        global _CURRENT_PROVIDER, _CURRENT_MODEL, _OLLAMA_MODEL
         
         # Create settings dialog
         settings_dialog = f"""VulChat AI Provider Settings
@@ -1003,7 +1003,6 @@ Choose an action:"""
                 model = ida_kernwin.ask_str(_OLLAMA_MODEL, 0, 
                                            "Enter Ollama model name (e.g., llama2, codellama, mistral):")
                 if model:
-                    global _OLLAMA_MODEL
                     _OLLAMA_MODEL = model
                     _CURRENT_MODEL = model
                     print(f"Set Ollama model to: {model}")
