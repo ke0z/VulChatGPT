@@ -101,7 +101,7 @@ export OPENAI_API_KEY="sk-your-key-here"
 
 
 🔧 New Features Added:
-Google Gemini Integration
+# Google Gemini Integration
 
 Added import and initialization for google.generativeai
 Added _GEMINI_API_KEY environment variable support
@@ -123,6 +123,7 @@ Environment Variables Added:
 GEMINI_API_KEY - Your Gemini API key
 VULCHAT_PROVIDER - Choose between "openai" or "gemini"
 VULCHAT_MODEL - Specify model (optional)
+
 🚀 How to Use Gemini:
 Install the Gemini library:
 
@@ -138,11 +139,13 @@ Set environment variables:
 # Windows Command Promptset GEMINI_API_KEY=your_gemini_key_hereset VULCHAT_PROVIDER=gemini# Or for PowerShell$env:GEMINI_API_KEY="your_gemini_key_here"$env:VULCHAT_PROVIDER="gemini"
 Restart IDA Pro to load the new configuration
 
-Use the Control Panel:
+# Use the Control Panel:
 
 Go to Edit → VulChat → Control Panel
 Switch between providers
 View current status
+
+
 🎯 Key Benefits:
 Choice: Use either OpenAI or Gemini based on your preference
 Flexibility: Easy switching between providers via Control Panel
