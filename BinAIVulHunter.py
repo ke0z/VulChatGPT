@@ -1,5 +1,5 @@
 """
-VulChatGPT - AI-Powered Vulnerability Analysis Plugin for IDA Pro
+BinAIVulHunter - AI-Powered Vulnerability Analysis Plugin for IDA Pro
 
 This plugin supports OpenAI, Google Gemini, and Ollama AI providers for vulnerability analysis.
 
@@ -27,13 +27,13 @@ For Ollama (Local AI):
    - OLLAMA_MODEL=llama2 (default)
 
 CONFIGURATION:
-- Set VULCHAT_PROVIDER=openai|gemini|ollama (default: openai)
-- Set VULCHAT_MODEL=gpt-4 or your preferred model (optional)
-- Use Edit/VulChat/Control Panel to switch providers in IDA
+- Set BINAIVULHUNTER_PROVIDER=openai|gemini|ollama (default: openai)
+- Set BINAIVULHUNTER_MODEL=gpt-4 or your preferred model (optional)
+- Use Edit/BinVulHunter/Control Panel to switch providers in IDA
 
 USAGE:
 - Right-click in decompiler view for context menu
-- Or use Edit/VulChat menu
+- Or use Edit/BinVulHunter menu
 - Functions include vulnerability scanning, code explanation, and variable renaming
 """
 
@@ -98,8 +98,8 @@ def parse_args():
         return None
 
     parser = argparse.ArgumentParser(
-        prog="VulChatGPT",
-        description="VulChatGPT headless controls (scan/decompile all)"
+        prog="BinAIVulHunter",
+        description="BinAIVulHunter headless controls (scan/decompile all)"
     )
     parser.add_argument("--scan-all", dest="scan_all", action="store_true",
                         help="Scan all functions for potential vulnerabilities")
@@ -239,8 +239,8 @@ _OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 _OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama2")
 
 # Current AI provider configuration
-_CURRENT_PROVIDER = os.getenv("VULCHAT_PROVIDER", "openai")  # openai, gemini, or ollama
-_CURRENT_MODEL = os.getenv("VULCHAT_MODEL", "gpt-4")  # default model for each provider
+_CURRENT_PROVIDER = os.getenv("BINAIVULHUNTER_PROVIDER", "openai")  # openai, gemini, or ollama
+_CURRENT_MODEL = os.getenv("BINAIVULHUNTER_MODEL", "gpt-4")  # default model for each provider
 
 # ----- Decompile All Handler --------------------------------------------------
 class DecompileAllHandler(idaapi.action_handler_t):
@@ -422,37 +422,37 @@ class DecompileAllHandler(idaapi.action_handler_t):
         return ida_kernwin.AST_ENABLE_ALWAYS
 
 # ----- Main Plugin ------------------------------------------------------------
-class VulChatPlugin(idaapi.plugin_t):
+class BinVulHunterPlugin(idaapi.plugin_t):
     flags = 0
-    wanted_name = "VulChat"
+    wanted_name = "BinVulHunter"
     wanted_hotkey = ""
     comment = "Uses OpenAI GPT, Google Gemini, or Ollama to analyze decompiler output for vulnerabilities based on CWE"
-    help = "Run from Edit/VulChat menu on pseudocode"
+    help = "Run from Edit/BinVulHunter menu on pseudocode"
 
     # action ids & menu paths
-    explain_action_name = "vulchat:explain_function"
-    explain_menu_path = "Edit/Vulchat/Explain the following Code"
+    explain_action_name = "binvulhunter:explain_function"
+    explain_menu_path = "Edit/BinVulHunter/Explain the following Code"
 
-    rename_action_name = "vulchat:rename_function"
-    rename_menu_path = "Edit/Vulchat/Rename Variables and Functions"
+    rename_action_name = "binvulhunter:rename_function"
+    rename_menu_path = "Edit/BinVulHunter/Rename Variables and Functions"
 
-    vuln_action_name = "vulchat:vuln_function"
-    vuln_menu_path = "Edit/VulChat/Find Possible Vulnerability"
+    vuln_action_name = "binvulhunter:vuln_function"
+    vuln_menu_path = "Edit/BinVulHunter/Find Possible Vulnerability"
 
-    expl_action_name = "vulchat:expl_function"
-    expl_menu_path = "Edit/Vulchat/Generate Safe Test Inputs"
+    expl_action_name = "binvulhunter:expl_function"
+    expl_menu_path = "Edit/BinVulHunter/Generate Safe Test Inputs"
 
-    scan_all_action_name = "vulchat:scan_all_functions"
-    scan_all_menu_path = "Edit/VulChat/Scan All Functions for Vulnerabilities"
+    scan_all_action_name = "binvulhunter:scan_all_functions"
+    scan_all_menu_path = "Edit/BinVulHunter/Scan All Functions for Vulnerabilities"
 
-    cwe_info_action_name = "vulchat:cwe_info"
-    cwe_info_menu_path = "Edit/VulChat/CWE Reference Lookup"
+    cwe_info_action_name = "binvulhunter:cwe_info"
+    cwe_info_menu_path = "Edit/BinVulHunter/CWE Reference Lookup"
 
-    decompile_all_action_name = "vulchat:decompile_all"
-    decompile_all_menu_path = "Edit/VulChat/Decompile All Functions"
+    decompile_all_action_name = "binvulhunter:decompile_all"
+    decompile_all_menu_path = "Edit/BinVulHunter/Decompile All Functions"
 
-    control_panel_action_name = "vulchat:control_panel"
-    control_panel_menu_path = "Edit/VulChat/Control Panel"
+    control_panel_action_name = "binvulhunter:control_panel"
+    control_panel_menu_path = "Edit/BinVulHunter/Control Panel"
 
     menu = None
 
@@ -900,7 +900,7 @@ class ControlPanelHandler(idaapi.action_handler_t):
         global _CURRENT_PROVIDER, _CURRENT_MODEL, _OLLAMA_MODEL
         
         # Create settings dialog
-        settings_dialog = f"""VulChat AI Provider Settings
+        settings_dialog = f"""BinVulHunter AI Provider Settings
         
 Current Configuration:
 - Provider: {_CURRENT_PROVIDER.title()}
@@ -924,7 +924,7 @@ Environment Variables:
 - GEMINI_API_KEY: {'Set' if _GEMINI_API_KEY else 'Not Set'}
 - OLLAMA_BASE_URL: {_OLLAMA_BASE_URL}
 - OLLAMA_MODEL: {_OLLAMA_MODEL}
-- VULCHAT_PROVIDER: {'Set (' + _CURRENT_PROVIDER + ')' if _CURRENT_PROVIDER else 'Not Set'}
+- BINAIVULHUNTER_PROVIDER: {'Set (' + _CURRENT_PROVIDER + ')' if _CURRENT_PROVIDER else 'Not Set'}
 
 Choose an action:"""
 
@@ -1010,7 +1010,7 @@ Choose an action:"""
                 ida_kernwin.info("Gemini currently uses gemini-pro model only.")
                 
         elif choice == 3:  # Setup Guide
-            setup_guide = """VulChat AI Provider Setup Guide
+            setup_guide = """BinVulHunter AI Provider Setup Guide
 
 To use OpenAI:
 1. Get API key from: https://platform.openai.com/api-keys
@@ -1031,16 +1031,16 @@ To use Ollama (Local AI):
 5. Set environment variables (optional):
    - OLLAMA_BASE_URL=http://localhost:11434 (default)
    - OLLAMA_MODEL=llama2 (default)
-   - VULCHAT_PROVIDER=ollama
+   - BINAIVULHUNTER_PROVIDER=ollama
 6. Restart IDA Pro
 
 To set provider preference:
-Set environment variable: VULCHAT_PROVIDER=openai|gemini|ollama
+Set environment variable: BINAIVULHUNTER_PROVIDER=openai|gemini|ollama
 
 Windows Command Line Examples:
 set OPENAI_API_KEY=sk-your-openai-key-here
 set GEMINI_API_KEY=your-gemini-key-here
-set VULCHAT_PROVIDER=ollama
+set BINAIVULHUNTER_PROVIDER=ollama
 set OLLAMA_MODEL=codellama
 
 Then restart IDA Pro."""
@@ -1056,14 +1056,14 @@ Then restart IDA Pro."""
 class ContextMenuHooks(ida_kernwin.UI_Hooks):
     def finish_populating_widget_popup(self, form, popup):
         if ida_kernwin.get_widget_type(form) == ida_kernwin.BWN_PSEUDOCODE:
-            ida_kernwin.attach_action_to_popup(form, popup, VulChatPlugin.vuln_action_name, "VulChat/")
-            ida_kernwin.attach_action_to_popup(form, popup, VulChatPlugin.expl_action_name, "VulChat/Safe_Tests")
-            ida_kernwin.attach_action_to_popup(form, popup, VulChatPlugin.explain_action_name, "VulChat/Explain")
-            ida_kernwin.attach_action_to_popup(form, popup, VulChatPlugin.rename_action_name, "VulChat/Rename_Vars")
-            ida_kernwin.attach_action_to_popup(form, popup, VulChatPlugin.scan_all_action_name, "VulChat/Scan_All")
-            ida_kernwin.attach_action_to_popup(form, popup, VulChatPlugin.cwe_info_action_name, "VulChat/CWE_Info")
-            ida_kernwin.attach_action_to_popup(form, popup, VulChatPlugin.decompile_all_action_name, "VulChat/Decompile_All")
-            ida_kernwin.attach_action_to_popup(form, popup, VulChatPlugin.control_panel_action_name, "VulChat/Control_Panel")
+            ida_kernwin.attach_action_to_popup(form, popup, BinVulHunterPlugin.vuln_action_name, "BinVulHunter/")
+            ida_kernwin.attach_action_to_popup(form, popup, BinVulHunterPlugin.expl_action_name, "BinVulHunter/Safe_Tests")
+            ida_kernwin.attach_action_to_popup(form, popup, BinVulHunterPlugin.explain_action_name, "BinVulHunter/Explain")
+            ida_kernwin.attach_action_to_popup(form, popup, BinVulHunterPlugin.rename_action_name, "BinVulHunter/Rename_Vars")
+            ida_kernwin.attach_action_to_popup(form, popup, BinVulHunterPlugin.scan_all_action_name, "BinVulHunter/Scan_All")
+            ida_kernwin.attach_action_to_popup(form, popup, BinVulHunterPlugin.cwe_info_action_name, "BinVulHunter/CWE_Info")
+            ida_kernwin.attach_action_to_popup(form, popup, BinVulHunterPlugin.decompile_all_action_name, "BinVulHunter/Decompile_All")
+            ida_kernwin.attach_action_to_popup(form, popup, BinVulHunterPlugin.control_panel_action_name, "BinVulHunter/Control_Panel")
 
 # ----- Helpers ----------------------------------------------------------------
 def comment_callback(address, view, response):
@@ -1723,7 +1723,7 @@ def get_cwe_details(cwe_id):
         req = urllib.request.Request(
             url,
             headers={
-                'User-Agent': 'IDA Pro Plugin - VulChat CWE Reference Tool'
+                'User-Agent': 'IDA Pro Plugin - BinVulHunter CWE Reference Tool'
             }
         )
 
@@ -1802,7 +1802,7 @@ class CweInfoHandler(idaapi.action_handler_t):
 # ---- Headless runner & PLUGIN_ENTRY -----------------------------------------
 def run_headless(args):
     """Run in headless mode with command-line arguments"""
-    print("[+] Running VulChatGPT in headless mode")
+    print("[+] Running BinAIVulHunter in headless mode")
     print(f"[+] Arguments: {args}")
 
     # Make sure the decompiler is available
@@ -1843,7 +1843,7 @@ def PLUGIN_ENTRY():
     provider_info = _get_current_provider_info()
     
     if not provider_info["available"]:
-        print(f"VulChat: {provider_info['name']} provider not available.")
+        print(f"BinVulHunter: {provider_info['name']} provider not available.")
         print(f"Please set {provider_info['api_key_env']} environment variable and restart IDA.")
         
         # Check if alternative is available
@@ -1852,7 +1852,7 @@ def PLUGIN_ENTRY():
         elif _CURRENT_PROVIDER == "gemini" and _OPENAI_SDK is not None and _OPENAI_API_KEY:
             print("Alternative: OpenAI provider is available. Use Control Panel to switch.")
     else:
-        print(f"VulChat: Using {provider_info['name']} provider with model {_get_current_provider_info()['default_model']}")
+        print(f"BinVulHunter: Using {provider_info['name']} provider with model {_get_current_provider_info()['default_model']}")
 
     # Check if we're running in headless mode and parse args
     args = parse_args()
@@ -1867,4 +1867,4 @@ def PLUGIN_ENTRY():
             idaapi.qexit(0)
         return None
 
-    return VulChatPlugin()
+    return BinVulHunterPlugin()
